@@ -13,12 +13,16 @@ import {
 } from "@raycast/api";
 import { useState } from "react";
 import { usePrompts } from "./hooks/usePrompts";
+import { trackPromptEvent } from "./lib/api";
 import { processTemplate } from "./lib/template-service";
 import type { Prompt, PromptArgument } from "./lib/types";
 
 export default function PastePromptCommand() {
-  const { data: prompts, isLoading, error, mutate } = usePrompts();
+  const { data, isLoading, error, mutate } = usePrompts();
   const [searchText, setSearchText] = useState("");
+
+  const userId = data?.userId;
+  const prompts = data?.prompts;
 
   const filteredPrompts =
     prompts?.filter(
@@ -83,13 +87,23 @@ export default function PastePromptCommand() {
           }
         />
       ) : (
-        filteredPrompts.map((prompt) => <PromptListItem key={prompt.id} prompt={prompt} onRefresh={handleRefresh} />)
+        filteredPrompts.map((prompt) => (
+          <PromptListItem key={prompt.id} prompt={prompt} userId={userId} onRefresh={handleRefresh} />
+        ))
       )}
     </List>
   );
 }
 
-function PromptListItem({ prompt, onRefresh }: { prompt: Prompt; onRefresh: () => void }) {
+function PromptListItem({
+  prompt,
+  userId,
+  onRefresh,
+}: {
+  prompt: Prompt;
+  userId: string | undefined;
+  onRefresh: () => void;
+}) {
   const { push } = useNavigation();
   const hasArguments = prompt.arguments && prompt.arguments.length > 0;
 
@@ -97,6 +111,7 @@ function PromptListItem({ prompt, onRefresh }: { prompt: Prompt; onRefresh: () =
     try {
       await Clipboard.paste(prompt.content);
       await Clipboard.copy(prompt.content);
+      if (userId) trackPromptEvent(userId, prompt.id, "prompt_used");
       await showToast({
         style: Toast.Style.Success,
         title: "Prompt pasted!",
@@ -114,7 +129,7 @@ function PromptListItem({ prompt, onRefresh }: { prompt: Prompt; onRefresh: () =
 
   function handleSelect() {
     if (hasArguments) {
-      push(<ArgumentsForm prompt={prompt} />);
+      push(<ArgumentsForm prompt={prompt} userId={userId} />);
     } else {
       pastePrompt();
     }
@@ -138,6 +153,7 @@ function PromptListItem({ prompt, onRefresh }: { prompt: Prompt; onRefresh: () =
             shortcut={{ modifiers: ["cmd"], key: "c" }}
             onAction={async () => {
               await Clipboard.copy(prompt.content);
+              if (userId) trackPromptEvent(userId, prompt.id, "prompt_copied");
               await showToast({ style: Toast.Style.Success, title: "Copied!", message: prompt.name });
             }}
           />
@@ -153,7 +169,7 @@ function PromptListItem({ prompt, onRefresh }: { prompt: Prompt; onRefresh: () =
   );
 }
 
-function ArgumentsForm({ prompt }: { prompt: Prompt }) {
+function ArgumentsForm({ prompt, userId }: { prompt: Prompt; userId: string | undefined }) {
   const [values, setValues] = useState<Record<string, string>>({});
   const [errors, setErrors] = useState<Record<string, string | undefined>>({});
 
@@ -182,6 +198,7 @@ function ArgumentsForm({ prompt }: { prompt: Prompt }) {
       const finalContent = processTemplate(prompt.content, values);
       await Clipboard.paste(finalContent);
       await Clipboard.copy(finalContent);
+      if (userId) trackPromptEvent(userId, prompt.id, "prompt_used");
       await showToast({ style: Toast.Style.Success, title: "Prompt pasted!", message: prompt.name });
       await popToRoot();
     } catch (err) {

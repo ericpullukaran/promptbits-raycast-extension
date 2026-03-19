@@ -13,5 +13,6 @@ export interface Prompt {
 }
 
 export interface PromptsResponse {
+  userId: string;
   prompts: Prompt[];
 }
