@@ -77,5 +77,7 @@ export function validateTemplate(
  * Preserves whitespace and formatting in the output.
  */
 export function processTemplate(template: string, providedArgs: Record<string, unknown>): string {
+  // Disable HTML escaping — prompts are plain text, not HTML
+  Mustache.escape = (text: string) => text;
   return Mustache.render(template, providedArgs);
 }
